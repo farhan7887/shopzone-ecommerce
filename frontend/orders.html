@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Orders — ShopZone</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .order-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.2rem; overflow: hidden; transition: var(--transition); }
+    .order-card:hover { border-color: rgba(232,197,71,.3); }
+    .order-header { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: .5rem; }
+    .order-meta { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+    .order-meta-item { font-size: .82rem; }
+    .order-meta-item .label { color: var(--muted); display: block; }
+    .order-meta-item .value { font-weight: 600; }
+    .order-items-list { padding: 1.2rem 1.5rem; }
+    .order-item-row { display: flex; align-items: center; gap: 1rem; padding: .6rem 0; border-bottom: 1px solid rgba(42,42,42,.5); }
+    .order-item-row:last-child { border-bottom: none; }
+    .order-item-thumb { width: 50px; height: 50px; border-radius: var(--radius-sm); overflow: hidden; background: var(--dark); flex-shrink: 0; }
+    .order-item-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  </style>
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<section class="section">
+  <h1 class="section-title" style="margin-bottom:2rem">My <span>Orders</span></h1>
+  <div id="orders-wrap">
+    <div class="loading-center"><div class="spinner"></div></div>
+  </div>
+</section>
+
+<footer id="footer"></footer>
+
+<script src="js/main.js"></script>
+<script>
+  renderNav('orders');
+  renderFooter();
+
+  if (!Auth.isLoggedIn()) window.location.href = 'login.html';
+
+  async function loadOrders() {
+    try {
+      const orders = await api.get('/orders/');
+      renderOrders(orders);
+    } catch (err) {
+      toast('Failed to load orders', 'error');
+    }
+  }
+
+  function renderOrders(orders) {
+    const wrap = document.getElementById('orders-wrap');
+    if (orders.length === 0) {
+      wrap.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <div class="empty-title">No orders yet</div>
+          <div class="empty-text">Once you place an order, it will appear here.</div>
+          <a href="index.html" class="btn btn-primary">Start Shopping</a>
+        </div>`;
+      return;
+    }
+
+    wrap.innerHTML = orders.map(order => `
+      <div class="order-card">
+        <div class="order-header">
+          <div class="order-meta">
+            <div class="order-meta-item">
+              <span class="label">ORDER ID</span>
+              <span class="value">#${order.id}</span>
+            </div>
+            <div class="order-meta-item">
+              <span class="label">DATE</span>
+              <span class="value">${new Date(order.created_at).toLocaleDateString('en-PK', {day:'numeric',month:'short',year:'numeric'})}</span>
+            </div>
+            <div class="order-meta-item">
+              <span class="label">TOTAL</span>
+              <span class="value" style="color:var(--accent)">${formatPrice(order.total_price)}</span>
+            </div>
+            <div class="order-meta-item">
+              <span class="label">ITEMS</span>
+              <span class="value">${order.items.length}</span>
+            </div>
+          </div>
+          ${statusBadge(order.status)}
+        </div>
+
+        <div class="order-items-list">
+          ${order.items.map(item => `
+            <div class="order-item-row">
+              <div class="order-item-thumb">
+                <img src="${item.product.image}" alt="${item.product.name}"
+                     onerror="this.src='https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=200'">
+              </div>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:.9rem">${item.product.name}</div>
+                <div style="font-size:.78rem;color:var(--light)">Qty: ${item.quantity} · ${formatPrice(item.price)} each</div>
+              </div>
+              <div style="font-weight:700;font-size:.95rem;color:var(--white)">
+                ${formatPrice(item.price * item.quantity)}
+              </div>
+            </div>
+          `).join('')}
+
+          <div style="margin-top:1rem;padding:.75rem;background:var(--dark);border-radius:var(--radius-sm);font-size:.82rem;color:var(--light)">
+            📍 Ship to: ${order.address.replace(/\n/g, ', ')}
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  loadOrders();
+</script>
+</body>
+</html>

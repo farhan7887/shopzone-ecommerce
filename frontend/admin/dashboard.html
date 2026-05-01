@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard — ShopZone</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="admin-layout">
+
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">⚙ ShopZone</div>
+    <div class="sidebar-label">Main</div>
+    <a href="dashboard.html" class="sidebar-link active">📊 Dashboard</a>
+    <a href="products.html"  class="sidebar-link">📦 Products</a>
+    <div class="sidebar-label">Orders</div>
+    <a href="orders.html"    class="sidebar-link">🧾 All Orders</a>
+    <div class="sidebar-label">Account</div>
+    <a href="../index.html"  class="sidebar-link">🏠 View Store</a>
+    <a href="#" onclick="handleLogout()" class="sidebar-link">🚪 Logout</a>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="admin-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem">
+      <div>
+        <h1 style="font-family:var(--font-display);font-size:1.8rem">Dashboard</h1>
+        <p style="color:var(--light);font-size:.88rem">Welcome back, <span id="admin-name">Admin</span></p>
+      </div>
+      <div id="current-date" style="color:var(--muted);font-size:.85rem"></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" id="stats-grid">
+      <div class="loading-center"><div class="spinner"></div></div>
+    </div>
+
+    <!-- Recent Orders -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:2rem 0 1rem">
+      <h2 style="font-family:var(--font-display);font-size:1.3rem">Recent Orders</h2>
+      <a href="orders.html" style="color:var(--accent);font-size:.88rem">View all →</a>
+    </div>
+
+    <div class="table-wrap" id="orders-table">
+      <div class="loading-center"><div class="spinner"></div></div>
+    </div>
+  </main>
+</div>
+
+<script src="../js/main.js"></script>
+<script>
+  // Auth guard
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) window.location.href = '../login.html';
+
+  const user = Auth.getUser();
+  document.getElementById('admin-name').textContent = user?.name || 'Admin';
+  document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-PK', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  function handleLogout() {
+    Auth.clear();
+    window.location.href = '../index.html';
+  }
+
+  async function loadStats() {
+    try {
+      const s = await api.get('/orders/stats');
+      document.getElementById('stats-grid').innerHTML = `
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-value" style="font-size:1.3rem">${formatPrice(s.total_revenue)}</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(232,197,71,.1);color:var(--accent)">💰</div>
+        </div>
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Total Orders</div>
+            <div class="stat-value">${s.total_orders}</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(90,156,248,.1);color:var(--info)">🧾</div>
+        </div>
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Pending</div>
+            <div class="stat-value">${s.pending_orders}</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(224,84,84,.1);color:var(--danger)">⏳</div>
+        </div>
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Products</div>
+            <div class="stat-value">${s.total_products}</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(76,175,125,.1);color:var(--success)">📦</div>
+        </div>
+        <div class="stat-card">
+          <div>
+            <div class="stat-label">Customers</div>
+            <div class="stat-value">${s.total_users}</div>
+          </div>
+          <div class="stat-icon" style="background:rgba(160,122,245,.1);color:#a07af5">👥</div>
+        </div>
+      `;
+    } catch (err) {
+      document.getElementById('stats-grid').innerHTML = `<p style="color:var(--danger)">Failed to load stats</p>`;
+    }
+  }
+
+  async function loadRecentOrders() {
+    try {
+      const orders = await api.get('/orders/');
+      const recent = orders.slice(0, 8);
+
+      if (recent.length === 0) {
+        document.getElementById('orders-table').innerHTML = `<div class="empty-state" style="padding:2rem"><div class="empty-icon">🧾</div><div>No orders yet</div></div>`;
+        return;
+      }
+
+      document.getElementById('orders-table').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${recent.map(o => `
+              <tr>
+                <td><strong>#${o.id}</strong></td>
+                <td style="font-size:.85rem;color:var(--light)">#${o.user_id}</td>
+                <td>${o.items.length} item${o.items.length>1?'s':''}</td>
+                <td style="color:var(--accent);font-weight:700">${formatPrice(o.total_price)}</td>
+                <td>${statusBadge(o.status)}</td>
+                <td style="font-size:.82rem;color:var(--light)">${new Date(o.created_at).toLocaleDateString()}</td>
+                <td>
+                  <select onchange="updateStatus(${o.id}, this.value)" style="background:var(--dark);border:1px solid var(--border);color:var(--white);padding:.3rem .5rem;border-radius:4px;font-size:.8rem;outline:none">
+                    ${['pending','processing','shipped','delivered','cancelled'].map(s => `<option value="${s}" ${s===o.status?'selected':''}>${s}</option>`).join('')}
+                  </select>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    } catch (err) {
+      document.getElementById('orders-table').innerHTML = `<p style="padding:1rem;color:var(--danger)">Failed to load orders</p>`;
+    }
+  }
+
+  async function updateStatus(orderId, status) {
+    try {
+      await api.put(`/orders/${orderId}/status`, { status });
+      toast(`Order #${orderId} → ${status}`, 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  loadStats();
+  loadRecentOrders();
+</script>
+</body>
+</html>

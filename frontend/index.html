@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShopZone — Premium Online Store</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav class="navbar" id="navbar"></nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">✨ New Arrivals Just In</div>
+    <h1>Shop the <em>Future,</em><br>Delivered Today</h1>
+    <p>Discover thousands of products from electronics to fashion — curated for quality, priced for everyone.</p>
+    <div class="hero-actions">
+      <a href="#products" class="btn btn-primary btn-lg">Browse Products →</a>
+      <a href="register.html" class="btn btn-outline btn-lg">Join Free</a>
+    </div>
+  </div>
+  <div class="hero-image">
+    <div class="hero-img-card">
+      <img src="https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400" alt="Watch">
+    </div>
+    <div class="hero-img-card">
+      <img src="https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=400" alt="Product">
+    </div>
+  </div>
+</section>
+
+<!-- Products Section -->
+<section class="section" id="products">
+  <div class="section-header">
+    <h2 class="section-title">All <span>Products</span></h2>
+    <span id="product-count" style="color:var(--light);font-size:.88rem"></span>
+  </div>
+
+  <!-- Category Filters -->
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-chip active" onclick="filterByCategory('')" data-cat="">All</button>
+  </div>
+
+  <!-- Product Grid -->
+  <div id="product-grid">
+    <div class="loading-center"><div class="spinner"></div></div>
+  </div>
+</section>
+
+<footer id="footer"></footer>
+
+<script src="js/main.js"></script>
+<script>
+  // ── State ────────────────────────────────────────
+  let allProducts = [];
+  let currentCategory = new URLSearchParams(window.location.search).get('category') || '';
+  let currentSearch   = new URLSearchParams(window.location.search).get('search')   || '';
+
+  // ── Init ─────────────────────────────────────────
+  renderNav('home');
+  renderFooter();
+  loadCategories();
+  loadProducts();
+
+  async function loadCategories() {
+    try {
+      const cats = await api.get('/products/categories');
+      const bar  = document.getElementById('filter-bar');
+      cats.forEach(cat => {
+        const btn = document.createElement('button');
+        btn.className = 'filter-chip' + (cat === currentCategory ? ' active' : '');
+        btn.dataset.cat = cat;
+        btn.textContent = cat;
+        btn.onclick = () => filterByCategory(cat);
+        bar.appendChild(btn);
+      });
+    } catch (_) {}
+  }
+
+  async function loadProducts() {
+    try {
+      let url = '/products/?';
+      if (currentCategory) url += `category=${encodeURIComponent(currentCategory)}&`;
+      if (currentSearch)   url += `search=${encodeURIComponent(currentSearch)}`;
+
+      allProducts = await api.get(url);
+      renderProducts(allProducts);
+    } catch (err) {
+      document.getElementById('product-grid').innerHTML =
+        `<div class="empty-state">
+          <div class="empty-icon">⚠️</div>
+          <div class="empty-title">Backend not running</div>
+          <div class="empty-text">Start the Flask server: <code>python app.py</code></div>
+        </div>`;
+    }
+  }
+
+  function renderProducts(products) {
+    const grid  = document.getElementById('product-grid');
+    const count = document.getElementById('product-count');
+    count.textContent = `${products.length} product${products.length !== 1 ? 's' : ''}`;
+
+    if (products.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-title">No products found</div>
+          <div class="empty-text">Try a different search or category.</div>
+          <button class="btn btn-outline" onclick="filterByCategory('')">View All</button>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = `<div class="product-grid">${products.map(productCardHTML).join('')}</div>`;
+  }
+
+  function filterByCategory(cat) {
+    currentCategory = cat;
+    document.querySelectorAll('.filter-chip').forEach(b => {
+      b.classList.toggle('active', b.dataset.cat === cat);
+    });
+    if (cat) {
+      renderProducts(allProducts.filter(p => p.category === cat));
+    } else {
+      renderProducts(allProducts);
+    }
+  }
+</script>
+</body>
+</html>

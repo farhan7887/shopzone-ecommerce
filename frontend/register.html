@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — ShopZone</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">ShopZone</div>
+    <div class="auth-subtitle">Create your free account and start shopping.</div>
+
+    <div id="error-msg" style="display:none;background:rgba(224,84,84,.1);border:1px solid var(--danger);color:var(--danger);padding:.75rem 1rem;border-radius:var(--radius-sm);font-size:.88rem;margin-bottom:1rem"></div>
+
+    <div class="form-group">
+      <label class="form-label">Full Name</label>
+      <input class="form-input" type="text" id="name" placeholder="Ali Hassan">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input class="form-input" type="email" id="email" placeholder="you@example.com">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="password" placeholder="Min. 6 characters">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Confirm Password</label>
+      <input class="form-input" type="password" id="confirm" placeholder="Repeat your password">
+    </div>
+
+    <button class="btn btn-primary btn-lg btn-full" onclick="handleRegister()" id="reg-btn">
+      Create Account →
+    </button>
+
+    <div class="auth-divider">or</div>
+
+    <div style="text-align:center;font-size:.88rem;color:var(--light)">
+      Already have an account? <a href="login.html" style="color:var(--accent);font-weight:600">Sign in →</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script>
+  if (Auth.isLoggedIn()) window.location.href = 'index.html';
+
+  document.getElementById('confirm').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleRegister();
+  });
+
+  async function handleRegister() {
+    const name     = document.getElementById('name').value.trim();
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirm  = document.getElementById('confirm').value;
+    const btn      = document.getElementById('reg-btn');
+    const errEl    = document.getElementById('error-msg');
+
+    errEl.style.display = 'none';
+
+    if (!name || !email || !password) { showError('All fields are required'); return; }
+    if (password.length < 6)          { showError('Password must be at least 6 characters'); return; }
+    if (password !== confirm)          { showError('Passwords do not match'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account…';
+
+    try {
+      const data = await api.post('/auth/register', { name, email, password });
+      Auth.setSession(data.token, data.user);
+      toast('Account created! Welcome, ' + data.user.name + '! 🎉', 'success');
+      setTimeout(() => window.location.href = 'index.html', 800);
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      btn.textContent = 'Create Account →';
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+</script>
+</body>
+</html>

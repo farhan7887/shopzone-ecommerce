@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — ShopZone</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">ShopZone</div>
+    <div class="auth-subtitle">Welcome back! Sign in to your account.</div>
+
+    <div id="error-msg" style="display:none;background:rgba(224,84,84,.1);border:1px solid var(--danger);color:var(--danger);padding:.75rem 1rem;border-radius:var(--radius-sm);font-size:.88rem;margin-bottom:1rem"></div>
+
+    <div class="form-group">
+      <label class="form-label">Email Address</label>
+      <input class="form-input" type="email" id="email" placeholder="you@example.com">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" type="password" id="password" placeholder="Your password">
+    </div>
+
+    <button class="btn btn-primary btn-lg btn-full" onclick="handleLogin()" id="login-btn">
+      Sign In →
+    </button>
+
+    <div class="auth-divider">or</div>
+
+    <div style="text-align:center;font-size:.88rem;color:var(--light)">
+      Don't have an account? <a href="register.html" style="color:var(--accent);font-weight:600">Create one →</a>
+    </div>
+
+    <div style="margin-top:1.5rem;padding:1rem;background:var(--dark);border-radius:var(--radius-sm);font-size:.82rem;color:var(--muted)">
+      <div style="font-weight:600;color:var(--light);margin-bottom:.4rem">Demo Accounts:</div>
+      <div>👤 user@shop.com / user123</div>
+      <div>⚙️ admin@shop.com / admin123</div>
+    </div>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script>
+  if (Auth.isLoggedIn()) window.location.href = 'index.html';
+
+  document.getElementById('password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleLogin();
+  });
+
+  async function handleLogin() {
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('login-btn');
+    const errEl    = document.getElementById('error-msg');
+
+    if (!email || !password) { showError('Please fill in all fields'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    errEl.style.display = 'none';
+
+    try {
+      const data = await api.post('/auth/login', { email, password });
+      Auth.setSession(data.token, data.user);
+      toast('Welcome back, ' + data.user.name + '! 👋', 'success');
+      setTimeout(() => {
+        window.location.href = data.user.role === 'admin' ? 'admin/dashboard.html' : 'index.html';
+      }, 800);
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      btn.textContent = 'Sign In →';
+    }
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+</script>
+</body>
+</html>

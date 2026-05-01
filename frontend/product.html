@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product — ShopZone</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .product-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; padding: 3rem 5%; align-items: start; }
+    .product-detail-img { border-radius: var(--radius); overflow: hidden; aspect-ratio: 1; background: var(--card); border: 1px solid var(--border); }
+    .product-detail-img img { width: 100%; height: 100%; object-fit: cover; }
+    .product-detail-info { position: sticky; top: 88px; }
+    .detail-category { color: var(--accent); font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .5rem; }
+    .detail-name { font-family: var(--font-display); font-size: 2rem; line-height: 1.2; margin-bottom: 1rem; }
+    .detail-price { font-size: 2rem; font-weight: 800; color: var(--accent); margin-bottom: 1rem; }
+    .detail-desc { color: var(--light); line-height: 1.8; margin-bottom: 1.5rem; }
+    .detail-stock { display: flex; align-items: center; gap: .5rem; font-size: .88rem; margin-bottom: 1.5rem; }
+    .qty-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+    .qty-big { display: flex; align-items: center; gap: .75rem; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .3rem; }
+    .qty-big button { width: 36px; height: 36px; border: none; background: var(--dark); color: var(--white); border-radius: 4px; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
+    .qty-big button:hover { background: var(--accent); color: var(--black); }
+    .qty-big span { min-width: 36px; text-align: center; font-weight: 700; font-size: 1.1rem; }
+    .related-section { padding: 0 5% 4rem; }
+    @media(max-width:700px){ .product-detail { grid-template-columns: 1fr; } .product-detail-info { position: static; } }
+  </style>
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<div id="product-detail-wrap">
+  <div class="loading-center"><div class="spinner"></div></div>
+</div>
+
+<div class="related-section" id="related-section" style="display:none">
+  <div class="section-header">
+    <h2 class="section-title">Related <span>Products</span></h2>
+  </div>
+  <div class="product-grid" id="related-grid"></div>
+</div>
+
+<footer id="footer"></footer>
+
+<script src="js/main.js"></script>
+<script>
+  renderNav();
+  renderFooter();
+
+  const pid = new URLSearchParams(window.location.search).get('id');
+  let qty = 1;
+  let product = null;
+
+  if (!pid) { window.location.href = 'index.html'; }
+
+  async function loadProduct() {
+    try {
+      product = await api.get(`/products/${pid}`);
+      document.title = `${product.name} — ShopZone`;
+      renderProduct(product);
+      loadRelated(product.category, product.id);
+    } catch (err) {
+      document.getElementById('product-detail-wrap').innerHTML =
+        `<div class="empty-state"><div class="empty-icon">❌</div><div class="empty-title">Product not found</div><a href="index.html" class="btn btn-primary">Go Home</a></div>`;
+    }
+  }
+
+  function renderProduct(p) {
+    const inStock = p.stock > 0;
+    document.getElementById('product-detail-wrap').innerHTML = `
+      <div class="product-detail">
+        <div class="product-detail-img">
+          <img src="${p.image || 'https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=600'}" alt="${p.name}"
+               onerror="this.src='https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=600'">
+        </div>
+        <div class="product-detail-info">
+          <div class="detail-category">📦 ${p.category}</div>
+          <h1 class="detail-name">${p.name}</h1>
+          <div class="detail-price">${formatPrice(p.price)}</div>
+          <p class="detail-desc">${p.description}</p>
+          <div class="detail-stock">
+            ${inStock
+              ? `<span style="color:var(--success)">✅ In Stock</span> · <span style="color:var(--light)">${p.stock} units available</span>`
+              : `<span style="color:var(--danger)">❌ Out of Stock</span>`}
+          </div>
+          ${inStock ? `
+            <div class="qty-row">
+              <span style="color:var(--light);font-size:.85rem;font-weight:600">QTY:</span>
+              <div class="qty-big">
+                <button onclick="changeQty(-1)">−</button>
+                <span id="qty-display">1</span>
+                <button onclick="changeQty(1)">+</button>
+              </div>
+            </div>
+            <button class="btn btn-primary btn-lg btn-full" onclick="handleAddToCart()">
+              🛒 Add to Cart
+            </button>
+            <button class="btn btn-outline btn-lg btn-full" style="margin-top:.75rem" onclick="handleBuyNow()">
+              ⚡ Buy Now
+            </button>
+          ` : `<button class="btn btn-ghost btn-lg btn-full" disabled>Out of Stock</button>`}
+
+          <div style="margin-top:1.5rem;padding:1rem;background:var(--card);border-radius:var(--radius-sm);border:1px solid var(--border)">
+            <div style="display:flex;flex-direction:column;gap:.5rem;font-size:.85rem;color:var(--light)">
+              <span>🚚 Free delivery on orders over PKR 5,000</span>
+              <span>🔄 Easy 30-day returns</span>
+              <span>🔒 Secure checkout with JWT auth</span>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function loadRelated(category, excludeId) {
+    try {
+      const products = await api.get(`/products/?category=${encodeURIComponent(category)}`);
+      const related  = products.filter(p => p.id !== parseInt(excludeId)).slice(0, 4);
+      if (related.length === 0) return;
+      const section = document.getElementById('related-section');
+      section.style.display = 'block';
+      document.getElementById('related-grid').innerHTML = related.map(productCardHTML).join('');
+    } catch (_) {}
+  }
+
+  function changeQty(delta) {
+    qty = Math.max(1, Math.min(qty + delta, product?.stock || 99));
+    document.getElementById('qty-display').textContent = qty;
+  }
+
+  async function handleAddToCart() {
+    await addToCart(parseInt(pid), qty);
+  }
+
+  async function handleBuyNow() {
+    if (!Auth.isLoggedIn()) {
+      toast('Please login first', 'error');
+      setTimeout(() => window.location.href = 'login.html', 1000);
+      return;
+    }
+    await addToCart(parseInt(pid), qty);
+    setTimeout(() => window.location.href = 'cart.html', 600);
+  }
+
+  loadProduct();
+</script>
+</body>
+</html>

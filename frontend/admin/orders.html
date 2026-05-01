@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Orders — ShopZone Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="admin-layout">
+
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">⚙ ShopZone</div>
+    <div class="sidebar-label">Main</div>
+    <a href="dashboard.html" class="sidebar-link">📊 Dashboard</a>
+    <a href="products.html"  class="sidebar-link">📦 Products</a>
+    <div class="sidebar-label">Orders</div>
+    <a href="orders.html"    class="sidebar-link active">🧾 All Orders</a>
+    <div class="sidebar-label">Account</div>
+    <a href="../index.html"  class="sidebar-link">🏠 View Store</a>
+    <a href="#" onclick="handleLogout()" class="sidebar-link">🚪 Logout</a>
+  </aside>
+
+  <main class="admin-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;flex-wrap:wrap;gap:1rem">
+      <h1 style="font-family:var(--font-display);font-size:1.8rem">All Orders</h1>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap" id="status-filters">
+        <button class="filter-chip active" onclick="filterOrders('')" data-status="">All</button>
+        <button class="filter-chip" onclick="filterOrders('pending')"    data-status="pending">⏳ Pending</button>
+        <button class="filter-chip" onclick="filterOrders('processing')" data-status="processing">⚙️ Processing</button>
+        <button class="filter-chip" onclick="filterOrders('shipped')"    data-status="shipped">📦 Shipped</button>
+        <button class="filter-chip" onclick="filterOrders('delivered')"  data-status="delivered">✅ Delivered</button>
+        <button class="filter-chip" onclick="filterOrders('cancelled')"  data-status="cancelled">❌ Cancelled</button>
+      </div>
+    </div>
+
+    <div class="table-wrap" id="orders-table">
+      <div class="loading-center"><div class="spinner"></div></div>
+    </div>
+  </main>
+</div>
+
+<script src="../js/main.js"></script>
+<script>
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) window.location.href = '../login.html';
+  function handleLogout() { Auth.clear(); window.location.href = '../index.html'; }
+
+  let allOrders = [];
+
+  async function loadOrders() {
+    try {
+      allOrders = await api.get('/orders/');
+      renderOrders(allOrders);
+    } catch (err) {
+      document.getElementById('orders-table').innerHTML = `<p style="padding:1rem;color:var(--danger)">Failed to load orders</p>`;
+    }
+  }
+
+  function filterOrders(status) {
+    document.querySelectorAll('#status-filters .filter-chip').forEach(b => {
+      b.classList.toggle('active', b.dataset.status === status);
+    });
+    const filtered = status ? allOrders.filter(o => o.status === status) : allOrders;
+    renderOrders(filtered);
+  }
+
+  function renderOrders(orders) {
+    if (orders.length === 0) {
+      document.getElementById('orders-table').innerHTML = `
+        <div class="empty-state" style="padding:3rem">
+          <div class="empty-icon">🧾</div><div class="empty-title">No orders found</div>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('orders-table').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Order ID</th><th>Customer</th><th>Products</th>
+            <th>Total</th><th>Status</th><th>Date</th><th>Update Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${orders.map(o => `
+            <tr>
+              <td><strong>#${o.id}</strong></td>
+              <td style="font-size:.85rem">User #${o.user_id}</td>
+              <td style="max-width:180px">
+                <div style="font-size:.8rem;color:var(--light)">
+                  ${o.items.map(i => `${i.product.name} ×${i.quantity}`).join('<br>')}
+                </div>
+              </td>
+              <td style="color:var(--accent);font-weight:700">${formatPrice(o.total_price)}</td>
+              <td>${statusBadge(o.status)}</td>
+              <td style="font-size:.8rem;color:var(--light)">${new Date(o.created_at).toLocaleDateString('en-PK')}</td>
+              <td>
+                <select onchange="updateStatus(${o.id}, this.value)"
+                  style="background:var(--dark);border:1px solid var(--border);color:var(--white);padding:.35rem .6rem;border-radius:4px;font-size:.82rem;outline:none;cursor:pointer">
+                  ${['pending','processing','shipped','delivered','cancelled'].map(s =>
+                    `<option value="${s}" ${s===o.status?'selected':''}>${s.charAt(0).toUpperCase()+s.slice(1)}</option>`
+                  ).join('')}
+                </select>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  async function updateStatus(orderId, status) {
+    try {
+      await api.put(`/orders/${orderId}/status`, { status });
+      toast(`Order #${orderId} updated to "${status}"`, 'success');
+      // Update local state
+      allOrders = allOrders.map(o => o.id === orderId ? { ...o, status } : o);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  loadOrders();
+</script>
+</body>
+</html>

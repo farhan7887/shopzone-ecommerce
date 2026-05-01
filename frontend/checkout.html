@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout — ShopZone</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .checkout-layout { display: grid; grid-template-columns: 1fr 380px; gap: 2rem; align-items: start; }
+    .checkout-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem; margin-bottom: 1.5rem; }
+    .checkout-card h2 { font-family: var(--font-display); font-size: 1.2rem; margin-bottom: 1.2rem; padding-bottom: .8rem; border-bottom: 1px solid var(--border); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .order-item { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; }
+    .order-item-img { width: 60px; height: 60px; border-radius: var(--radius-sm); overflow: hidden; background: var(--dark); flex-shrink: 0; }
+    .order-item-img img { width: 100%; height: 100%; object-fit: cover; }
+    .success-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.85); z-index: 3000; display: flex; align-items: center; justify-content: center; }
+    .success-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 3rem; text-align: center; max-width: 420px; }
+    .success-icon { font-size: 4rem; margin-bottom: 1rem; }
+    @media(max-width:700px){ .checkout-layout { grid-template-columns: 1fr; } .form-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<nav class="navbar" id="navbar"></nav>
+
+<section class="section">
+  <h1 class="section-title" style="margin-bottom:2rem">Checkout</h1>
+  <div id="checkout-wrap">
+    <div class="loading-center"><div class="spinner"></div></div>
+  </div>
+</section>
+
+<footer id="footer"></footer>
+
+<script src="js/main.js"></script>
+<script>
+  renderNav();
+  renderFooter();
+
+  if (!Auth.isLoggedIn()) window.location.href = 'login.html';
+
+  let cartItems = [];
+
+  async function loadCheckout() {
+    try {
+      cartItems = await api.get('/cart/');
+      if (cartItems.length === 0) { window.location.href = 'cart.html'; return; }
+      renderCheckout();
+    } catch (err) { toast('Failed to load cart', 'error'); }
+  }
+
+  function renderCheckout() {
+    const user     = Auth.getUser();
+    const subtotal = cartItems.reduce((s,i) => s + i.product.price * i.quantity, 0);
+    const shipping = subtotal >= 5000 ? 0 : 299;
+    const total    = subtotal + shipping;
+
+    document.getElementById('checkout-wrap').innerHTML = `
+      <div class="checkout-layout">
+        <div>
+          <div class="checkout-card">
+            <h2>📍 Shipping Address</h2>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input class="form-input" id="sh-name" value="${user.name}" placeholder="Your full name">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input class="form-input" id="sh-phone" placeholder="e.g. 0300-1234567">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Street Address</label>
+              <input class="form-input" id="sh-street" placeholder="House #, Street, Area">
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">City</label>
+                <input class="form-input" id="sh-city" placeholder="e.g. Islamabad">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Postal Code</label>
+                <input class="form-input" id="sh-zip" placeholder="e.g. 44000">
+              </div>
+            </div>
+          </div>
+
+          <div class="checkout-card">
+            <h2>💳 Payment Method</h2>
+            <div style="display:flex;flex-direction:column;gap:.75rem">
+              <label style="display:flex;align-items:center;gap:.75rem;padding:1rem;border:1px solid var(--accent);border-radius:var(--radius-sm);cursor:pointer">
+                <input type="radio" name="payment" value="cod" checked> Cash on Delivery (COD)
+                <span style="margin-left:auto;font-size:.8rem;color:var(--light)">Pay when delivered</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:.75rem;padding:1rem;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;opacity:.5">
+                <input type="radio" name="payment" value="card" disabled> Credit / Debit Card
+                <span style="margin-left:auto;font-size:.8rem;color:var(--muted)">Coming soon</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="cart-summary" style="position:sticky;top:88px">
+            <div class="summary-title">Order Summary</div>
+            ${cartItems.map(item => `
+              <div class="order-item">
+                <div class="order-item-img">
+                  <img src="${item.product.image}" alt="${item.product.name}"
+                       onerror="this.src='https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=200'">
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:.88rem;font-weight:600">${item.product.name}</div>
+                  <div style="font-size:.78rem;color:var(--light)">Qty: ${item.quantity}</div>
+                </div>
+                <div style="font-size:.9rem;font-weight:700;color:var(--accent)">
+                  ${formatPrice(item.product.price * item.quantity)}
+                </div>
+              </div>
+            `).join('')}
+
+            <div class="summary-row"><span>Subtotal</span><span>${formatPrice(subtotal)}</span></div>
+            <div class="summary-row"><span>Shipping</span><span>${shipping===0?'<span style="color:var(--success)">FREE</span>':formatPrice(shipping)}</span></div>
+            <div class="summary-row total"><span>Total</span><span class="amount">${formatPrice(total)}</span></div>
+
+            <button class="btn btn-primary btn-lg btn-full" style="margin-top:1.2rem" onclick="placeOrder()">
+              ✅ Place Order
+            </button>
+            <div style="text-align:center;font-size:.75rem;color:var(--muted);margin-top:.6rem">
+              🔒 Your info is secure & encrypted
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  async function placeOrder() {
+    const name   = document.getElementById('sh-name').value.trim();
+    const phone  = document.getElementById('sh-phone').value.trim();
+    const street = document.getElementById('sh-street').value.trim();
+    const city   = document.getElementById('sh-city').value.trim();
+    const zip    = document.getElementById('sh-zip').value.trim();
+
+    if (!name || !phone || !street || !city) {
+      toast('Please fill all shipping fields', 'error'); return;
+    }
+
+    const address = `${name}, ${phone}\n${street}, ${city} ${zip}`;
+
+    try {
+      const order = await api.post('/orders/', { address });
+      showSuccess(order);
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  function showSuccess(order) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="success-overlay">
+        <div class="success-card">
+          <div class="success-icon">🎉</div>
+          <h2 style="font-family:var(--font-display);font-size:1.6rem;margin-bottom:.5rem">Order Placed!</h2>
+          <p style="color:var(--light);margin-bottom:.5rem">Order #${order.id} confirmed</p>
+          <p style="color:var(--accent);font-weight:700;font-size:1.2rem;margin-bottom:1.5rem">
+            ${formatPrice(order.total_price)}
+          </p>
+          <p style="color:var(--light);font-size:.88rem;margin-bottom:2rem">
+            You'll receive your order soon. Track it in My Orders.
+          </p>
+          <div style="display:flex;gap:1rem">
+            <a href="orders.html" class="btn btn-primary" style="flex:1">View Orders</a>
+            <a href="index.html" class="btn btn-outline" style="flex:1">Shop More</a>
+          </div>
+        </div>
+      </div>`);
+    updateCartBadge();
+  }
+
+  loadCheckout();
+</script>
+</body>
+</html>

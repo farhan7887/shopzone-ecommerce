@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Products — ShopZone Admin</title>
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="admin-layout">
+
+  <aside class="admin-sidebar">
+    <div class="sidebar-logo">⚙ ShopZone</div>
+    <div class="sidebar-label">Main</div>
+    <a href="dashboard.html" class="sidebar-link">📊 Dashboard</a>
+    <a href="products.html"  class="sidebar-link active">📦 Products</a>
+    <div class="sidebar-label">Orders</div>
+    <a href="orders.html"    class="sidebar-link">🧾 All Orders</a>
+    <div class="sidebar-label">Account</div>
+    <a href="../index.html"  class="sidebar-link">🏠 View Store</a>
+    <a href="#" onclick="handleLogout()" class="sidebar-link">🚪 Logout</a>
+  </aside>
+
+  <main class="admin-content">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem">
+      <h1 style="font-family:var(--font-display);font-size:1.8rem">Products</h1>
+      <button class="btn btn-primary" onclick="openModal()">+ Add Product</button>
+    </div>
+
+    <div class="table-wrap" id="product-table">
+      <div class="loading-center"><div class="spinner"></div></div>
+    </div>
+  </main>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Add Product</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Product Name</label>
+      <input class="form-input" id="p-name" placeholder="e.g. iPhone 15 Pro">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <textarea class="form-input" id="p-desc" placeholder="Product description..."></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div class="form-group">
+        <label class="form-label">Price (PKR)</label>
+        <input class="form-input" type="number" id="p-price" placeholder="e.g. 99999">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stock</label>
+        <input class="form-input" type="number" id="p-stock" placeholder="e.g. 50">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <input class="form-input" id="p-category" placeholder="e.g. Electronics">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Image URL</label>
+      <input class="form-input" id="p-image" placeholder="https://...">
+    </div>
+
+    <div style="display:flex;gap:1rem;margin-top:.5rem">
+      <button class="btn btn-outline" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveProduct()" id="save-btn">Save Product</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/main.js"></script>
+<script>
+  if (!Auth.isLoggedIn() || !Auth.isAdmin()) window.location.href = '../login.html';
+
+  function handleLogout() { Auth.clear(); window.location.href = '../index.html'; }
+
+  let editingId = null;
+
+  async function loadProducts() {
+    try {
+      const products = await api.get('/products/');
+      renderTable(products);
+    } catch (err) {
+      document.getElementById('product-table').innerHTML = `<p style="padding:1rem;color:var(--danger)">Failed to load</p>`;
+    }
+  }
+
+  function renderTable(products) {
+    if (products.length === 0) {
+      document.getElementById('product-table').innerHTML = `
+        <div class="empty-state" style="padding:3rem">
+          <div class="empty-icon">📦</div>
+          <div class="empty-title">No products</div>
+          <button class="btn btn-primary" onclick="openModal()">Add First Product</button>
+        </div>`;
+      return;
+    }
+
+    document.getElementById('product-table').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Image</th><th>Name</th><th>Category</th>
+            <th>Price</th><th>Stock</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${products.map(p => `
+            <tr>
+              <td style="color:var(--muted)">#${p.id}</td>
+              <td>
+                <img src="${p.image}" alt="${p.name}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;background:var(--dark)"
+                     onerror="this.src='https://images.unsplash.com/photo-1560393464-5c69a73c5770?w=100'">
+              </td>
+              <td><strong>${p.name}</strong></td>
+              <td><span class="status-badge status-processing">${p.category}</span></td>
+              <td style="color:var(--accent);font-weight:700">${formatPrice(p.price)}</td>
+              <td>
+                <span style="color:${p.stock>0?'var(--success)':'var(--danger)'}">${p.stock}</span>
+              </td>
+              <td>
+                <div style="display:flex;gap:.4rem">
+                  <button class="btn btn-ghost btn-sm" onclick='editProduct(${JSON.stringify(p)})'>✏ Edit</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id}, '${p.name.replace(/'/g,"\\'")}')">🗑</button>
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function openModal(product = null) {
+    editingId = product ? product.id : null;
+    document.getElementById('modal-title').textContent = product ? 'Edit Product' : 'Add Product';
+    document.getElementById('p-name').value     = product?.name        || '';
+    document.getElementById('p-desc').value     = product?.description || '';
+    document.getElementById('p-price').value    = product?.price       || '';
+    document.getElementById('p-stock').value    = product?.stock       || '';
+    document.getElementById('p-category').value = product?.category    || '';
+    document.getElementById('p-image').value    = product?.image       || '';
+    document.getElementById('modal').classList.add('open');
+  }
+
+  function editProduct(p) { openModal(p); }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  async function saveProduct() {
+    const data = {
+      name:        document.getElementById('p-name').value.trim(),
+      description: document.getElementById('p-desc').value.trim(),
+      price:       document.getElementById('p-price').value,
+      stock:       document.getElementById('p-stock').value,
+      category:    document.getElementById('p-category').value.trim(),
+      image:       document.getElementById('p-image').value.trim(),
+    };
+
+    if (!data.name || !data.description || !data.price || !data.category) {
+      toast('Please fill all required fields', 'error'); return;
+    }
+
+    const btn = document.getElementById('save-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+
+    try {
+      if (editingId) {
+        await api.put(`/products/${editingId}`, data);
+        toast('Product updated ✅', 'success');
+      } else {
+        await api.post('/products/', data);
+        toast('Product added ✅', 'success');
+      }
+      closeModal();
+      loadProducts();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Save Product';
+    }
+  }
+
+  async function deleteProduct(id, name) {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/products/${id}`);
+      toast('Product deleted', 'info');
+      loadProducts();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  }
+
+  // Close modal on overlay click
+  document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  loadProducts();
+</script>
+</body>
+</html>
