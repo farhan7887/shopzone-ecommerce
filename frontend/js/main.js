@@ -2,8 +2,7 @@
    ShopZone — Main JavaScript
    ═══════════════════════════════════════════════ */
 
-const API = 'http://localhost:5000/api';
-
+const API = 'https://shopzone-ecommerce-production.up.railway.app/api';
 // ── Auth Helpers ─────────────────────────────────
 const Auth = {
   getToken:  ()      => localStorage.getItem('sz_token'),
